@@ -67,6 +67,9 @@ workflows:
   build:
     jobs:
       - build-node
+      - docker-build-and-push:
+          requires:
+            - build-node
     # - deploy:
     #     requires:
     #       - build-node
