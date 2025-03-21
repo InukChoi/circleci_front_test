@@ -7,22 +7,53 @@ jobs:
   build-node:
     # Build node project
     executor: node/default
+    working_directory: ~/project
     steps:
       - checkout
       - node/install-packages:
           pkg-manager: npm
       - run:
           command: npm run build
+      # - run:
+      #     name: Create the ~/artifacts directory if it doesn't exist
+      #     command: mkdir -p ~/artifacts
+      # # Copy output to artifacts dir
+      # - run:
+      #     name: Copy artifacts
+      #     command: cp -R build dist public .output .next .docusaurus ~/artifacts 2>/dev/null || true
+      # - store_artifacts:
+      #     path: ~/artifacts
+      #     destination: node-build
+      - persist_to_workspace: # volume 같은거로 남겨놓게
+          root: .
+          paths:
+            - dist/*
+
+  docker-build-and-push:
+    docker:
+      - image: cimg/base:2022.09
+        auth:
+          username: $DOCKERHUB_USERNAME
+          password: $DOCKERHUB_PASSWORD
+    working_directory: ~/project
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/project
+      - setup_remote_docker: # 도커 인 도커 문제 해결
+          docker_layer_caching: true
       - run:
-          name: Create the ~/artifacts directory if it doesn't exist
-          command: mkdir -p ~/artifacts
-      # Copy output to artifacts dir
+          name: Build Docker Image
+          command: |
+            TAG=0.1.$CIRCLE_BUILD_NUM
+            docker build -t $DOCKERHUB_USERNAME/circleci-front:$TAG .
       - run:
-          name: Copy artifacts
-          command: cp -R build dist public .output .next .docusaurus ~/artifacts 2>/dev/null || true
-      - store_artifacts:
-          path: ~/artifacts
-          destination: node-build
+          name: Push application Docker image
+          command: |
+            TAG=0.1.$CIRCLE_BUILD_NUM
+            docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
+            docker push $DOCKERHUB_USERNAME/circleci-front:$TAG
+
   deploy:
     # This is an example deploy job, not actually used by the workflow
     docker:
